@@ -31,22 +31,27 @@ int
 efi_match(struct device *parent, void *match, void *aux)
 {
 	static EFI_GUID	esrt_guid = ESRT_TABLE_GUID;
-	EFI_SYSTEM_TABLE *st = (EFI_SYSTEM_TABLE *)PMAP_DIRECT_MAP(bios_efiinfo->system_table);
+
+	EFI_SYSTEM_TABLE *st;
 	EFI_CONFIGURATION_TABLE *ct;
 	int i;
+	size_t ct_len;
 
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
-	bus_space_handle_t	 ioh;
+	bus_space_handle_t	 ioh_st;
+	bus_space_handle_t	 ioh_ct;
 
 	if (bus_space_map(iot, bios_efiinfo->system_table, sizeof(*st),
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh))
+	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_st))
 		panic("can't map EFI_SYSTEM_TABLE");
-	st = bus_space_vaddr(iot, ioh);
+	st = bus_space_vaddr(iot, ioh_st);
 
-	if (bus_space_map(iot, (uintptr_t)st->ConfigurationTable, sizeof(*st) * st->NumberOfTableEntries,
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh))
+        ct_len = sizeof(*st) * st->NumberOfTableEntries;
+
+	if (bus_space_map(iot, (uintptr_t)st->ConfigurationTable, ct_len,
+	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_ct))
 		panic("can't map ConfigurationTable");
-	ct = bus_space_vaddr(iot, ioh);
+	ct = bus_space_vaddr(iot, ioh_ct);
 
 	printf(": ST %p\n", st);
 	printf(": ST# %lu\n", st->NumberOfTableEntries);
@@ -55,6 +60,9 @@ efi_match(struct device *parent, void *match, void *aux)
 		if (efi_guidcmp(&esrt_guid, &ct[i].VendorGuid) == 0)
 			return 1;
 	}
+
+	bus_space_unmap(iot, ioh_st, sizeof(*st));
+	bus_space_unmap(iot, ioh_ct, ct_len);
 
 	printf(": Didn't find ESRT!\n");
 	return 0;
