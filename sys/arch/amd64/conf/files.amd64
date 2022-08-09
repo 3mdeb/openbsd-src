@@ -86,6 +86,10 @@ device	bios {}
 attach	bios at mainbus
 file	arch/amd64/amd64/bios.c			bios needs-flag
 
+device	efi {}
+attach	efi at mainbus
+file	arch/amd64/amd64/efi.c			efi
+
 #Intel SMP specification 1.4
 define	mpbios
 device	mpbios
