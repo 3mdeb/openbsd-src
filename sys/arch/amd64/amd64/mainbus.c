@@ -261,6 +261,13 @@ mainbus_attach(struct device *parent, struct device *self, void *aux)
 	}
 #endif /* NVMM > 0 */
 
+#if NEFI > 0
+	if (bios_efiinfo != NULL) {
+		mba.mba_busname = "efi";
+		config_found(self, &mba, mainbus_print);
+	}
+#endif
+
 #if NEFIFB > 0
 	if (bios_efiinfo != NULL || efifb_cb_found()) {
 		mba.mba_eaa.eaa_name = "efifb";
