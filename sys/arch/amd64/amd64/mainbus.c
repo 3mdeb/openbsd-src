@@ -51,6 +51,7 @@
 #include "vmm.h"
 #include "pvbus.h"
 #include "efifb.h"
+#include "efi.h"
 
 #include <machine/cpuvar.h>
 #include <machine/i82093var.h>
