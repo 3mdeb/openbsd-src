@@ -13,4 +13,4 @@ efi0		at mainbus?
 option DEBUG
 option DIAGNOSTIC
 
-makeoptions COPTS="-O0"
+makeoptions COPTIMIZE="-O0"
