@@ -362,8 +362,10 @@ bus_space_map(bus_space_tag_t t, bus_addr_t bpa, bus_size_t size, int flags,
 	 */
 	error = extent_alloc_region(ex, bpa, size,
 	    EX_NOWAIT | (ioport_malloc_safe ? EX_MALLOCOK : 0));
-	if (error)
+	if (error) {
+		printf("bus_space_map: extent_alloc_region error\n");
 		return (error);
+	}
 
 	/*
 	 * For I/O space, that's all she wrote.
@@ -394,6 +396,8 @@ bus_space_map(bus_space_tag_t t, bus_addr_t bpa, bus_size_t size, int flags,
 			printf("bus_space_map: pa 0x%lx, size 0x%lx\n",
 			    bpa, size);
 			printf("bus_space_map: can't free region\n");
+		} else {
+			printf("bus_space_map: x86_mem_add_mapping error\n");
 		}
 	}
 
