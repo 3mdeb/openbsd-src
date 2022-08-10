@@ -80,15 +80,12 @@ void
 efi_attach(struct device *parent, struct device *self, void *aux)
 {
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
-	bus_space_handle_t	 ioh_esrt;
-	bus_space_handle_t	 ioh_esre;
 
 	EFI_SYSTEM_TABLE *st;
 	uint16_t major, minor;
 
 	EFI_SYSTEM_RESOURCE_TABLE *esrt;
 	EFI_SYSTEM_RESOURCE_ENTRY *esre;
-	size_t esrt_len;
 	int i;
 
 	st = bus_space_vaddr(iot, ioh_st);
@@ -100,17 +97,8 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	if (bus_space_map(iot, esrt_paddr, sizeof(*esrt),
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_esrt))
-		panic("can't map ESRT");
-	esrt = bus_space_vaddr(iot, ioh_esrt);
-
-	esrt_len = esrt->FwResourceCountMax * sizeof(esre);
-
-	if (bus_space_map(iot, (uintptr_t)&esrt[1], esrt_len,
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_esre))
-		panic("can't map ESRT entries");
-	esre = bus_space_vaddr(iot, ioh_esre);
+	esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(esrt_paddr);
+	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&esrt[1];
 
 	for (i = 0; i < esrt->FwResourceCount; i++) {
 		printf("ESRT[%d]:\n", i);
@@ -129,7 +117,4 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf("  LastAttemptVersion: %08x\n", esre[i].LastAttemptVersion);
 		printf("  LastAttemptStatus: %08x\n", esre[i].LastAttemptStatus);
 	}
-
-	bus_space_unmap(iot, ioh_esre, esrt_len);
-	bus_space_unmap(iot, ioh_esrt, sizeof(*esrt));
 }
