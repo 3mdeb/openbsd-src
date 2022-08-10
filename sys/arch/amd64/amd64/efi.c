@@ -33,6 +33,7 @@ struct cfdriver efi_cd = {
 };
 
 static bus_space_handle_t ioh_st;
+static uintptr_t esrt_paddr;
 
 int
 efi_match(struct device *parent, void *match, void *aux)
@@ -57,24 +58,21 @@ efi_match(struct device *parent, void *match, void *aux)
 		panic("can't map EFI_SYSTEM_TABLE");
 	st = bus_space_vaddr(iot, ioh_st);
 
-        ct_len = sizeof(*st) * st->NumberOfTableEntries;
+	ct_len = sizeof(*st) * st->NumberOfTableEntries;
 
 	if (bus_space_map(iot, (uintptr_t)st->ConfigurationTable, ct_len,
 	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_ct))
 		panic("can't map ConfigurationTable");
 	ct = bus_space_vaddr(iot, ioh_ct);
 
-	printf(": ST %p\n", st);
-	printf(": ST# %lu\n", st->NumberOfTableEntries);
-
 	for (i = 0; i < st->NumberOfTableEntries; i++) {
-		if (efi_guidcmp(&esrt_guid, &ct[i].VendorGuid) == 0)
+		if (efi_guidcmp(&esrt_guid, &ct[i].VendorGuid) == 0) {
+			esrt_paddr = (uintptr_t)ct[i].VendorTable;
 			return 1;
+		}
 	}
 
 	bus_space_unmap(iot, ioh_ct, ct_len);
-
-	printf(": Didn't find ESRT!\n");
 	return 0;
 }
 
@@ -82,8 +80,16 @@ void
 efi_attach(struct device *parent, struct device *self, void *aux)
 {
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
+	bus_space_handle_t	 ioh_esrt;
+	bus_space_handle_t	 ioh_esre;
+
 	EFI_SYSTEM_TABLE *st;
 	uint16_t major, minor;
+
+	EFI_SYSTEM_RESOURCE_TABLE *esrt;
+	EFI_SYSTEM_RESOURCE_ENTRY *esre;
+	size_t esrt_len;
+	int i;
 
 	st = bus_space_vaddr(iot, ioh_st);
 
@@ -93,4 +99,37 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	if (minor % 10)
 		printf(".%d", minor % 10);
 	printf("\n");
+
+	if (bus_space_map(iot, esrt_paddr, sizeof(*esrt),
+	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_esrt))
+		panic("can't map ESRT");
+	esrt = bus_space_vaddr(iot, ioh_esrt);
+
+	esrt_len = esrt->FwResourceCountMax * sizeof(esre);
+
+	if (bus_space_map(iot, (uintptr_t)&esrt[1], esrt_len,
+	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_esre))
+		panic("can't map ESRT entries");
+	esre = bus_space_vaddr(iot, ioh_esre);
+
+	for (i = 0; i < esrt->FwResourceCount; i++) {
+		printf("ESRT[%d]:\n", i);
+		printf("  FwClass: %08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
+		    esre[i].FwClass.Data1,
+		    esre[i].FwClass.Data2,
+		    esre[i].FwClass.Data3,
+		    esre[i].FwClass.Data4[0], esre[i].FwClass.Data4[1],
+		    esre[i].FwClass.Data4[2], esre[i].FwClass.Data4[3],
+		    esre[i].FwClass.Data4[4], esre[i].FwClass.Data4[5],
+		    esre[i].FwClass.Data4[6], esre[i].FwClass.Data4[7]);
+		printf("  FwType: %08x\n", esre[i].FwType);
+		printf("  FwVersion: %08x\n", esre[i].FwVersion);
+		printf("  LowestSupportedFwVersion: %08x\n", esre[i].LowestSupportedFwVersion);
+		printf("  CapsuleFlags: %08x\n", esre[i].CapsuleFlags);
+		printf("  LastAttemptVersion: %08x\n", esre[i].LastAttemptVersion);
+		printf("  LastAttemptStatus: %08x\n", esre[i].LastAttemptStatus);
+	}
+
+	bus_space_unmap(iot, ioh_esre, esrt_len);
+	bus_space_unmap(iot, ioh_esrt, sizeof(*esrt));
 }

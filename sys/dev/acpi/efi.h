@@ -150,6 +150,25 @@ typedef struct {
 	EFI_CONFIGURATION_TABLE		*ConfigurationTable;
 } EFI_SYSTEM_TABLE;
 
+typedef struct {
+	UINT32	FwResourceCount;
+	UINT32	FwResourceCountMax;
+	UINT64	FwResourceVersion;
+	//EFI_SYSTEM_RESOURCE_ENTRY Entries[];
+} EFI_SYSTEM_RESOURCE_TABLE;
+
+#define EFI_SYSTEM_RESOURCE_TABLE_FIRMWARE_RESOURCE_VERSION 1
+
+typedef struct {
+	EFI_GUID	FwClass;
+	UINT32		FwType;
+	UINT32		FwVersion;
+	UINT32		LowestSupportedFwVersion;
+	UINT32		CapsuleFlags;
+	UINT32		LastAttemptVersion;
+	UINT32		LastAttemptStatus;
+} EFI_SYSTEM_RESOURCE_ENTRY;
+
 #define EFI_SUCCESS	0
 
 #define	efi_guidcmp(_a, _b)	memcmp((_a), (_b), sizeof(EFI_GUID))
