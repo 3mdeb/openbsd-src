@@ -14,6 +14,7 @@
 #include <dev/clock_subr.h>
 
 struct efi_esrt {
+	struct device dev;
 };
 
 struct efi_attach_args {
