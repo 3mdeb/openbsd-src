@@ -9,3 +9,8 @@ option	MULTIPROCESSOR
 cpu*		at mainbus?
 
 efi0		at mainbus?
+
+option DEBUG
+option DIAGNOSTIC
+
+makeoptions COPTS="-O0"
