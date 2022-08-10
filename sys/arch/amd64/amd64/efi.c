@@ -32,6 +32,8 @@ struct cfdriver efi_cd = {
 	NULL, "efi", DV_DULL
 };
 
+static bus_space_handle_t ioh_st;
+
 int
 efi_match(struct device *parent, void *match, void *aux)
 {
@@ -43,7 +45,6 @@ efi_match(struct device *parent, void *match, void *aux)
 	size_t ct_len;
 
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
-	bus_space_handle_t	 ioh_st;
 	bus_space_handle_t	 ioh_ct;
 
 	struct efi_attach_args *eaa = aux;
@@ -71,7 +72,6 @@ efi_match(struct device *parent, void *match, void *aux)
 			return 1;
 	}
 
-	bus_space_unmap(iot, ioh_st, sizeof(*st));
 	bus_space_unmap(iot, ioh_ct, ct_len);
 
 	printf(": Didn't find ESRT!\n");
@@ -81,14 +81,11 @@ efi_match(struct device *parent, void *match, void *aux)
 void
 efi_attach(struct device *parent, struct device *self, void *aux)
 {
-	uint64_t system_table;
+	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
 	EFI_SYSTEM_TABLE *st;
 	uint16_t major, minor;
 
-	system_table = bios_efiinfo->system_table;
-	KASSERT(system_table);
-
-	st = (void *)system_table;
+	st = bus_space_vaddr(iot, ioh_st);
 
 	major = st->Hdr.Revision >> 16;
 	minor = st->Hdr.Revision & 0xffff;
@@ -96,5 +93,4 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	if (minor % 10)
 		printf(".%d", minor % 10);
 	printf("\n");
-	return; // XXX
 }
