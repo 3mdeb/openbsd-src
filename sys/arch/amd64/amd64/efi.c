@@ -16,6 +16,10 @@
 struct efi_esrt {
 };
 
+struct efi_attach_args {
+	const char *eaa_name;
+};
+
 int	efi_match(struct device *, void *, void *);
 void	efi_attach(struct device *, struct device *, void *);
 
@@ -40,6 +44,11 @@ efi_match(struct device *parent, void *match, void *aux)
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
 	bus_space_handle_t	 ioh_st;
 	bus_space_handle_t	 ioh_ct;
+
+	struct efi_attach_args *eaa = aux;
+
+	if (strcmp(eaa->eaa_name, efi_cd.cd_name) != 0)
+		return 0;
 
 	if (bus_space_map(iot, bios_efiinfo->system_table, sizeof(*st),
 	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_st))
