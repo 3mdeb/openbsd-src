@@ -11,6 +11,5 @@ cpu*		at mainbus?
 efi0		at mainbus?
 
 option DEBUG
-option DIAGNOSTIC
 
 makeoptions COPTIMIZE="-O0"
