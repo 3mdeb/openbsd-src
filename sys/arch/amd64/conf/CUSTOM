@@ -10,7 +10,8 @@ cpu*		at mainbus?
 
 efi0		at mainbus?
 
-option DEBUG
-
 # makes kernel unusable
-#makeoptions COPTIMIZE="-Og"
+#option DEBUG
+
+# -O0 results in failure due to too large stack frames
+makeoptions COPTIMIZE="-Og"
