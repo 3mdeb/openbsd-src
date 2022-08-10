@@ -12,4 +12,5 @@ efi0		at mainbus?
 
 option DEBUG
 
-makeoptions COPTIMIZE="-O0"
+# makes kernel unusable
+#makeoptions COPTIMIZE="-Og"
