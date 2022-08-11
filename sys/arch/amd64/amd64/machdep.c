@@ -2028,6 +2028,10 @@ getbootinfo(char *bootinfo, int bootinfo_size)
 			break;
 
 		case BOOTARG_EFIINFO:
+			if (q->ba_size - (sizeof(*q) - 1) != sizeof(*bios_efiinfo))
+				printf("BOOTARG_EFIINFO size is %lu, want %lu\n",
+				      q->ba_size - (sizeof(*q) - 1),
+				      sizeof(*bios_efiinfo));
 			bios_efiinfo = (bios_efiinfo_t *)q->ba_arg;
 			break;
 
