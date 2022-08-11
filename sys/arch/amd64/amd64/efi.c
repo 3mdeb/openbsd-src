@@ -32,54 +32,22 @@ struct cfdriver efi_cd = {
 	NULL, "efi", DV_DULL
 };
 
-static bus_space_handle_t ioh_st;
-static uintptr_t esrt_paddr;
-
 int
 efi_match(struct device *parent, void *match, void *aux)
 {
-	static EFI_GUID	esrt_guid = ESRT_TABLE_GUID;
-
-	EFI_SYSTEM_TABLE *st;
-	EFI_CONFIGURATION_TABLE *ct;
-	int i;
-	size_t ct_len;
-
-	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
-	bus_space_handle_t	 ioh_ct;
-
 	struct efi_attach_args *eaa = aux;
 
 	if (strcmp(eaa->eaa_name, efi_cd.cd_name) != 0)
 		return 0;
 
-	if (bus_space_map(iot, bios_efiinfo->system_table, sizeof(*st),
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_st))
-		panic("can't map EFI_SYSTEM_TABLE");
-	st = bus_space_vaddr(iot, ioh_st);
-
-	ct_len = sizeof(*st) * st->NumberOfTableEntries;
-
-	if (bus_space_map(iot, (uintptr_t)st->ConfigurationTable, ct_len,
-	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_ct))
-		panic("can't map ConfigurationTable");
-	ct = bus_space_vaddr(iot, ioh_ct);
-
-	for (i = 0; i < st->NumberOfTableEntries; i++) {
-		if (efi_guidcmp(&esrt_guid, &ct[i].VendorGuid) == 0) {
-			esrt_paddr = (uintptr_t)ct[i].VendorTable;
-			return 1;
-		}
-	}
-
-	bus_space_unmap(iot, ioh_ct, ct_len);
-	return 0;
+	return (bios_efiinfo->config_esrt != 0);
 }
 
 void
 efi_attach(struct device *parent, struct device *self, void *aux)
 {
 	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
+	bus_space_handle_t ioh_st;
 
 	EFI_SYSTEM_TABLE *st;
 	uint16_t major, minor;
@@ -87,6 +55,10 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	EFI_SYSTEM_RESOURCE_TABLE *esrt;
 	EFI_SYSTEM_RESOURCE_ENTRY *esre;
 	int i;
+
+	if (bus_space_map(iot, bios_efiinfo->system_table, sizeof(*st),
+	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_st))
+		panic("can't map EFI_SYSTEM_TABLE");
 
 	st = bus_space_vaddr(iot, ioh_st);
 
@@ -97,7 +69,7 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(esrt_paddr);
+	esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
 	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&esrt[1];
 
 	printf("ESRT FwResourceCount = %d\n", esrt->FwResourceCount);
