@@ -36,7 +36,7 @@
 
 u_int cnvmem, extmem;		/* XXX - compatibility */
 
-bios_memmap_t bios_memmap[64];	/* This is easier */
+extern bios_memmap_t bios_memmap[64];	/* This is easier */
 
 void
 dump_biosmem(bios_memmap_t *tm)

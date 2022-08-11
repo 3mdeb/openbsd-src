@@ -104,6 +104,9 @@ union mainbus_attach_args {
 #if NPVBUS > 0
 	struct pvbus_attach_args mba_pvba;
 #endif
+#if NEFI > 0
+	struct efi_attach_args mba_efia;
+#endif
 #if NEFIFB > 0
 	struct efifb_attach_args mba_eaa;
 #endif
@@ -264,7 +267,7 @@ mainbus_attach(struct device *parent, struct device *self, void *aux)
 
 #if NEFI > 0
 	if (bios_efiinfo != NULL) {
-		mba.mba_busname = "efi";
+		mba.mba_efia.mba_busname = "efi";
 		config_found(self, &mba, mainbus_print);
 	}
 #endif

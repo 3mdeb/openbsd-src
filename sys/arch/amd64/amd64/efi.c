@@ -2,16 +2,11 @@
 #include <sys/device.h>
 #include <sys/systm.h>
 
-#include <uvm/uvm_extern.h>
-
 #include <machine/biosvar.h>
-#include <machine/cpufunc.h>
 #include <machine/bus.h>
-#include <machine/fpu.h>
+#include <machine/efifbvar.h>
 
 #include <dev/acpi/efi.h>
-
-#include <dev/clock_subr.h>
 
 struct efi_esrt {
 	struct device dev;
@@ -84,11 +79,11 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		    esre[i].FwClass.Data4[2], esre[i].FwClass.Data4[3],
 		    esre[i].FwClass.Data4[4], esre[i].FwClass.Data4[5],
 		    esre[i].FwClass.Data4[6], esre[i].FwClass.Data4[7]);
-		printf("  FwType: %08x\n", esre[i].FwType);
-		printf("  FwVersion: %08x\n", esre[i].FwVersion);
-		printf("  LowestSupportedFwVersion: %08x\n", esre[i].LowestSupportedFwVersion);
-		printf("  CapsuleFlags: %08x\n", esre[i].CapsuleFlags);
-		printf("  LastAttemptVersion: %08x\n", esre[i].LastAttemptVersion);
-		printf("  LastAttemptStatus: %08x\n", esre[i].LastAttemptStatus);
+		printf("  FwType: 0x%08x\n", esre[i].FwType);
+		printf("  FwVersion: 0x%08x\n", esre[i].FwVersion);
+		printf("  LowestSupportedFwVersion: 0x%08x\n", esre[i].LowestSupportedFwVersion);
+		printf("  CapsuleFlags: 0x%08x\n", esre[i].CapsuleFlags);
+		printf("  LastAttemptVersion: 0x%08x\n", esre[i].LastAttemptVersion);
+		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
 	}
 }
