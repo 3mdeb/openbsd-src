@@ -100,6 +100,8 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(esrt_paddr);
 	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&esrt[1];
 
+	printf("ESRT FwResourceCount = %d\n", esrt->FwResourceCount);
+
 	for (i = 0; i < esrt->FwResourceCount; i++) {
 		printf("ESRT[%d]:\n", i);
 		printf("  FwClass: %08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",

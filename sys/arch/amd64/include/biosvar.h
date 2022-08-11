@@ -207,6 +207,7 @@ typedef struct _bios_bootsr {
 typedef struct _bios_efiinfo {
 	uint64_t	config_acpi;
 	uint64_t	config_smbios;
+	uint64_t	config_esrt;
 	uint64_t	fb_addr;
 	uint64_t	fb_size;
 	uint32_t	fb_height;
