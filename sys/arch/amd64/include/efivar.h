@@ -7,7 +7,7 @@ struct efi_attach_args {
 
 __BEGIN_DECLS
 
-int efi_get_esrt(void **, unsigned int *);
+int	efi_get_esrt(void **, unsigned int *);
 
 __END_DECLS
 
