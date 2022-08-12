@@ -8,8 +8,6 @@ option	MULTIPROCESSOR
 
 cpu*		at mainbus?
 
-efi0		at mainbus?
-
 # makes kernel unusable
 #option DEBUG
 
