@@ -11,15 +11,15 @@
 
 #include <dev/acpi/efi.h>
 
-struct efi_esrt {
-	struct	device dev;
+struct efi {
+	struct	device efi_dev;
 };
 
 int	efi_match(struct device *, void *, void *);
 void	efi_attach(struct device *, struct device *, void *);
 
 const struct cfattach efi_ca = {
-	sizeof(struct efi_esrt), efi_match, efi_attach
+	sizeof(struct efi), efi_match, efi_attach
 };
 
 struct cfdriver efi_cd = {
@@ -34,7 +34,7 @@ efi_match(struct device *parent, void *match, void *aux)
 	struct efi_attach_args *eaa = aux;
 
 	if (strcmp(eaa->eaa_name, efi_cd.cd_name) != 0)
-		return 0;
+		return (0);
 
 	return (bios_efiinfo->config_esrt != 0);
 }
@@ -64,7 +64,8 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
+	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)
+	    PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
 	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&efi_esrt[1];
 
 	printf("ESRT FwResourceCount = %d\n", efi_esrt->FwResourceCount);
@@ -92,10 +93,10 @@ int
 efi_get_esrt(void **table, unsigned int *size)
 {
 	if (efi_esrt == NULL)
-		return 1;
+		return (1);
 
 	*table = efi_esrt;
 	*size = sizeof(efi_esrt) +
 	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * efi_esrt->FwResourceCount;
-	return 0;
+	return (0);
 }
