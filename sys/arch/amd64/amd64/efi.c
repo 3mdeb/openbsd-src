@@ -2,18 +2,17 @@
 #include <sys/device.h>
 #include <sys/systm.h>
 
+#include <uvm/uvm_extern.h>
+
 #include <machine/biosvar.h>
 #include <machine/bus.h>
-#include <machine/efifbvar.h>
+#include <machine/efivar.h>
+#include <machine/pmap.h>
 
 #include <dev/acpi/efi.h>
 
 struct efi_esrt {
 	struct device dev;
-};
-
-struct efi_attach_args {
-	const char *eaa_name;
 };
 
 int	efi_match(struct device *, void *, void *);

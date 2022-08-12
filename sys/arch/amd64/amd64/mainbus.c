@@ -70,6 +70,10 @@
 #include <machine/biosvar.h>
 #endif
 
+#if NEFI > 0
+#include <machine/efivar.h>
+#endif
+
 #if NEFIFB > 0
 #include <machine/efifbvar.h>
 #endif
@@ -267,7 +271,7 @@ mainbus_attach(struct device *parent, struct device *self, void *aux)
 
 #if NEFI > 0
 	if (bios_efiinfo != NULL) {
-		mba.mba_efia.mba_busname = "efi";
+		mba.mba_efia.eaa_name = "efi";
 		config_found(self, &mba, mainbus_print);
 	}
 #endif
