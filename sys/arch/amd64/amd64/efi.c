@@ -12,7 +12,7 @@
 #include <dev/acpi/efi.h>
 
 struct efi_esrt {
-	struct device dev;
+	struct	device dev;
 };
 
 int	efi_match(struct device *, void *, void *);
@@ -25,6 +25,8 @@ const struct cfattach efi_ca = {
 struct cfdriver efi_cd = {
 	NULL, "efi", DV_DULL
 };
+
+EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
 
 int
 efi_match(struct device *parent, void *match, void *aux)
@@ -40,15 +42,14 @@ efi_match(struct device *parent, void *match, void *aux)
 void
 efi_attach(struct device *parent, struct device *self, void *aux)
 {
-	bus_space_tag_t		 iot = X86_BUS_SPACE_MEM;
 	bus_space_handle_t ioh_st;
+	bus_space_tag_t iot = X86_BUS_SPACE_MEM;
 
 	EFI_SYSTEM_TABLE *st;
-	uint16_t major, minor;
-
-	EFI_SYSTEM_RESOURCE_TABLE *esrt;
 	EFI_SYSTEM_RESOURCE_ENTRY *esre;
+
 	int i;
+	uint16_t major, minor;
 
 	if (bus_space_map(iot, bios_efiinfo->system_table, sizeof(*st),
 	    BUS_SPACE_MAP_PREFETCHABLE | BUS_SPACE_MAP_LINEAR, &ioh_st))
@@ -63,12 +64,12 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
-	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&esrt[1];
+	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
+	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&efi_esrt[1];
 
-	printf("ESRT FwResourceCount = %d\n", esrt->FwResourceCount);
+	printf("ESRT FwResourceCount = %d\n", efi_esrt->FwResourceCount);
 
-	for (i = 0; i < esrt->FwResourceCount; i++) {
+	for (i = 0; i < efi_esrt->FwResourceCount; i++) {
 		printf("ESRT[%d]:\n", i);
 		printf("  FwClass: %08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
 		    esre[i].FwClass.Data1,
@@ -85,4 +86,16 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf("  LastAttemptVersion: 0x%08x\n", esre[i].LastAttemptVersion);
 		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
 	}
+}
+
+int
+efi_get_esrt(void **table, unsigned int *size)
+{
+	if (efi_esrt == NULL)
+		return 1;
+
+	*table = efi_esrt;
+	*size = sizeof(efi_esrt) +
+	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * efi_esrt->FwResourceCount;
+	return 0;
 }
