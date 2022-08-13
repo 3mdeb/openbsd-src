@@ -2702,7 +2702,11 @@ pmap_enter(struct pmap *pmap, vaddr_t va, paddr_t pa, vm_prot_t prot, int flags)
 			panic("%s: get ptp failed", __func__);
 		}
 	}
-	opte = PTE_BASE[pl1_i(va)];		/* old PTE */
+	int pte_idx = pl1_i(va);
+	pt_entry_t *pte_base = PTE_BASE;
+	printf("pte_base = %p\n", pte_base);
+	printf("pte_idx = %d\n", pte_idx);
+	opte = pte_base[pte_idx];		/* old PTE */
 
 	/*
 	 * is there currently a valid mapping at our VA?

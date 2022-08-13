@@ -13,3 +13,5 @@ cpu*		at mainbus?
 
 # -O0 results in failure due to too large stack frames
 makeoptions COPTIMIZE="-Og"
+# include information on macros in debug info
+# makeoptions DEBUG="-g3"

@@ -17,6 +17,7 @@ struct efi {
 
 int	efi_match(struct device *, void *, void *);
 void	efi_attach(struct device *, struct device *, void *);
+void	efi_map_runtime(void);
 void	efi_enter(void);
 void	efi_leave(void);
 
@@ -68,8 +69,7 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	efi_rs = (EFI_RUNTIME_SERVICES *)
-	    PMAP_DIRECT_MAP((uintptr_t)st->RuntimeServices);
+	efi_rs = st->RuntimeServices;
 
 	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)
 	    PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
@@ -95,12 +95,82 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
 	}
 
+	efi_map_runtime();
+
 	EFI_TIME time;
 	EFI_STATUS status;
 
 	efi_enter();
 	status = efi_rs->GetTime(&time, NULL);
 	efi_leave();
+}
+
+void
+efi_map_runtime(void)
+{
+	EFI_MEMORY_DESCRIPTOR *desc;
+	int i;
+
+	uint32_t mmap_desc_size = bios_efiinfo->mmap_desc_size;
+	uint32_t mmap_size = bios_efiinfo->mmap_size;
+	uint64_t mmap_start = bios_efiinfo->mmap_start;
+
+	if (bios_efiinfo->mmap_desc_ver != 1) {
+		panic("Unsupported version of EFI memory map: %u\n",
+		    bios_efiinfo->mmap_desc_ver);
+	}
+
+	desc = (EFI_MEMORY_DESCRIPTOR *)PMAP_DIRECT_MAP(mmap_start);
+	for (i = 0; i < mmap_size / mmap_desc_size; i++) {
+		if (desc->Attribute & EFI_MEMORY_RUNTIME) {
+			vaddr_t va = desc->VirtualStart;
+			paddr_t pa = desc->PhysicalStart;
+			int npages = desc->NumberOfPages;
+			vm_prot_t prot = PROT_READ | PROT_WRITE;
+
+#define EFI_DEBUG 
+#ifdef EFI_DEBUG
+			printf("type 0x%x pa 0x%llx va 0x%llx pages 0x%llx "
+			    "attr 0x%llx\n",
+			    desc->Type, desc->PhysicalStart,
+			    desc->VirtualStart, desc->NumberOfPages,
+			    desc->Attribute);
+#endif
+
+			/*
+			 * If the virtual address is still zero, use
+			 * an identity mapping.
+			 */
+			if (va == 0)
+				va = pa;
+
+			/*
+			 * Only make pages marked as runtime service code
+			 * executable.  This violates the standard but it
+			 * seems we can get away with it.
+			 */
+			if (desc->Type == EfiRuntimeServicesCode)
+				prot |= PROT_EXEC;
+
+			if (desc->Attribute & EFI_MEMORY_RP)
+				prot &= ~PROT_READ;
+			if (desc->Attribute & EFI_MEMORY_XP)
+				prot &= ~PROT_EXEC;
+			if (desc->Attribute & EFI_MEMORY_RO)
+				prot &= ~PROT_WRITE;
+
+			while (npages--) {
+				pmap_enter(pmap_kernel(), va, pa, prot,
+				    PMAP_WIRED);
+				va += PAGE_SIZE;
+				pa += PAGE_SIZE;
+			}
+		}
+
+		desc = NextMemoryDescriptor(desc, mmap_desc_size);
+	}
+
+	pmap_update(pmap_kernel());
 }
 
 void
