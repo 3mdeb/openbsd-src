@@ -17,6 +17,8 @@ struct efi {
 
 int	efi_match(struct device *, void *, void *);
 void	efi_attach(struct device *, struct device *, void *);
+void	efi_enter(void);
+void	efi_leave(void);
 
 const struct cfattach efi_ca = {
 	sizeof(struct efi), efi_match, efi_attach
@@ -27,6 +29,8 @@ struct cfdriver efi_cd = {
 };
 
 EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
+EFI_RUNTIME_SERVICES *efi_rs;
+u_long efi_psw;
 
 int
 efi_match(struct device *parent, void *match, void *aux)
@@ -64,6 +68,9 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
+	efi_rs = (EFI_RUNTIME_SERVICES *)
+	    PMAP_DIRECT_MAP((uintptr_t)st->RuntimeServices);
+
 	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)
 	    PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
 	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&efi_esrt[1];
@@ -87,6 +94,27 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf("  LastAttemptVersion: 0x%08x\n", esre[i].LastAttemptVersion);
 		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
 	}
+
+	EFI_TIME time;
+	EFI_STATUS status;
+
+	efi_enter();
+	status = efi_rs->GetTime(&time, NULL);
+	efi_leave();
+}
+
+void
+efi_enter(void)
+{
+	efi_psw = intr_disable();
+	fpu_kernel_enter();
+}
+
+void
+efi_leave(void)
+{
+	fpu_kernel_exit();
+	intr_restore(efi_psw);
 }
 
 int
