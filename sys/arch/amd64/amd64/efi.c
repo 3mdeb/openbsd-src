@@ -31,6 +31,7 @@ struct cfdriver efi_cd = {
 
 EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
 EFI_RUNTIME_SERVICES *efi_rs;
+struct pmap *efi_pm;
 u_long efi_psw;
 
 int
@@ -69,7 +70,8 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	efi_rs = st->RuntimeServices;
+	efi_rs = (EFI_RUNTIME_SERVICES *)
+	    PMAP_DIRECT_MAP((uintptr_t)st->RuntimeServices);
 
 	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)
 	    PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
@@ -101,19 +103,23 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	EFI_STATUS status;
 
 	efi_enter();
-	status = efi_rs->GetTime(&time, NULL);
+	EFI_GET_TIME gt = (EFI_GET_TIME)PMAP_DIRECT_MAP((uintptr_t)efi_rs->GetTime);
+	status = gt(&time, NULL);
 	efi_leave();
 }
 
 void
 efi_map_runtime(void)
 {
+	return;
 	EFI_MEMORY_DESCRIPTOR *desc;
 	int i;
 
 	uint32_t mmap_desc_size = bios_efiinfo->mmap_desc_size;
 	uint32_t mmap_size = bios_efiinfo->mmap_size;
 	uint64_t mmap_start = bios_efiinfo->mmap_start;
+
+	efi_pm = pmap_create();
 
 	if (bios_efiinfo->mmap_desc_ver != 1) {
 		panic("Unsupported version of EFI memory map: %u\n",
@@ -160,8 +166,7 @@ efi_map_runtime(void)
 				prot &= ~PROT_WRITE;
 
 			while (npages--) {
-				pmap_enter(pmap_kernel(), va, pa, prot,
-				    PMAP_WIRED);
+				pmap_enter(efi_pm, va, pa, prot, PMAP_WIRED);
 				va += PAGE_SIZE;
 				pa += PAGE_SIZE;
 			}
@@ -170,12 +175,14 @@ efi_map_runtime(void)
 		desc = NextMemoryDescriptor(desc, mmap_desc_size);
 	}
 
-	pmap_update(pmap_kernel());
+	pmap_update(efi_pm);
 }
 
 void
 efi_enter(void)
 {
+	/* lcr3(efi_pm->pm_pdirpa); */
+
 	efi_psw = intr_disable();
 	fpu_kernel_enter();
 }
