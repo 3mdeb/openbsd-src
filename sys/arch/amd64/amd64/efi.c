@@ -70,8 +70,7 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 		printf(".%d", minor % 10);
 	printf("\n");
 
-	efi_rs = (EFI_RUNTIME_SERVICES *)
-	    PMAP_DIRECT_MAP((uintptr_t)st->RuntimeServices);
+	efi_rs = st->RuntimeServices;
 
 	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)
 	    PMAP_DIRECT_MAP(bios_efiinfo->config_esrt);
@@ -103,15 +102,13 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	EFI_STATUS status;
 
 	efi_enter();
-	EFI_GET_TIME gt = (EFI_GET_TIME)PMAP_DIRECT_MAP((uintptr_t)efi_rs->GetTime);
-	status = gt(&time, NULL);
+	status = efi_rs->GetTime(&time, NULL);
 	efi_leave();
 }
 
 void
 efi_map_runtime(void)
 {
-	return;
 	EFI_MEMORY_DESCRIPTOR *desc;
 	int i;
 
@@ -179,11 +176,49 @@ efi_map_runtime(void)
 }
 
 void
+compare_address_spaces_(int level, paddr_t a, paddr_t b)
+{
+	static const char *msgs[PTP_LEVELS];
+
+	uint64_t *aa = (void *)PMAP_DIRECT_MAP(a);
+	uint64_t *ab = (void *)PMAP_DIRECT_MAP(b);
+
+	char msg_buf[100];
+	msgs[PTP_LEVELS - level] = msg_buf;
+
+	int i, j;
+	for (i = 0; i < 512; ++i) {
+		if (aa[i] == ab[i])
+			continue;
+
+		if (aa[i] == 0 || ab[i] == 0 || level == 1) {
+			for (j = 0; j < PTP_LEVELS - level; ++j)
+				printf("%s", msgs[j]);
+			printf("%*sL%d: difference: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, aa[i], ab[i]);
+			continue;
+		}
+
+		snprintf(msg_buf, sizeof(msg_buf), "%*sL%d: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, aa[i], ab[i]);
+		compare_address_spaces_(level - 1, aa[i] & PG_FRAME, ab[i] & PG_FRAME);
+	}
+}
+
+void
+compare_address_spaces(paddr_t a, paddr_t b)
+{
+	printf(">> AS differences start\n");
+	compare_address_spaces_(PTP_LEVELS, a, b);
+	printf("<< AS differences end\n");
+}
+
+void
 efi_enter(void)
 {
-	/* lcr3(efi_pm->pm_pdirpa); */
+	// check value of CR3, compare pmap_kernel() with efi_pm->pm_pdirpa 
+	compare_address_spaces(pmap_kernel()->pm_pdirpa, efi_pm->pm_pdirpa);
 
 	efi_psw = intr_disable();
+	lcr3(efi_pm->pm_pdirpa);
 	fpu_kernel_enter();
 }
 
