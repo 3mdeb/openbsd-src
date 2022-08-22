@@ -98,12 +98,17 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 
 	efi_map_runtime();
 
-	EFI_TIME time;
+	EFI_TIME time = {};
 	EFI_STATUS status;
 
 	efi_enter();
 	status = efi_rs->GetTime(&time, NULL);
 	efi_leave();
+
+	printf("STATUS: %lu\n", status);
+
+	printf("NOW: %4d.%02d.%02d %02d:%02d:%02d\n", time.Year, time.Month,
+	       time.Day, time.Hour, time.Minute, time.Second);
 }
 
 void
@@ -125,7 +130,7 @@ efi_map_runtime(void)
 
 	desc = (EFI_MEMORY_DESCRIPTOR *)PMAP_DIRECT_MAP(mmap_start);
 	for (i = 0; i < mmap_size / mmap_desc_size; i++) {
-		if (desc->Attribute & EFI_MEMORY_RUNTIME) {
+		if ((desc->Attribute & EFI_MEMORY_RUNTIME) || desc->Type == EfiACPIMemoryNVS || desc->PhysicalStart == 0) {
 			vaddr_t va = desc->VirtualStart;
 			paddr_t pa = desc->PhysicalStart;
 			int npages = desc->NumberOfPages;
@@ -133,7 +138,7 @@ efi_map_runtime(void)
 
 #define EFI_DEBUG 
 #ifdef EFI_DEBUG
-			printf("type 0x%x pa 0x%llx va 0x%llx pages 0x%llx "
+			printf(" RT type 0x%x pa 0x%llx va 0x%llx pages 0x%llx "
 			    "attr 0x%llx\n",
 			    desc->Type, desc->PhysicalStart,
 			    desc->VirtualStart, desc->NumberOfPages,
@@ -167,6 +172,12 @@ efi_map_runtime(void)
 				va += PAGE_SIZE;
 				pa += PAGE_SIZE;
 			}
+		} else {
+			printf("!RT type 0x%x pa 0x%llx va 0x%llx pages 0x%llx "
+				"attr 0x%llx\n",
+				desc->Type, desc->PhysicalStart,
+				desc->VirtualStart, desc->NumberOfPages,
+				desc->Attribute);
 		}
 
 		desc = NextMemoryDescriptor(desc, mmap_desc_size);
@@ -194,11 +205,11 @@ compare_address_spaces_(int level, paddr_t a, paddr_t b)
 		if (aa[i] == 0 || ab[i] == 0 || level == 1) {
 			for (j = 0; j < PTP_LEVELS - level; ++j)
 				printf("%s", msgs[j]);
-			printf("%*sL%d: difference: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, aa[i], ab[i]);
+			printf("%*sL%d[%i]: difference: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, i, aa[i], ab[i]);
 			continue;
 		}
 
-		snprintf(msg_buf, sizeof(msg_buf), "%*sL%d: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, aa[i], ab[i]);
+		snprintf(msg_buf, sizeof(msg_buf), "%*sL%d[%d]: 0x%016llu and 0x%016llu\n", PTP_LEVELS - level, "", level, i, aa[i], ab[i]);
 		compare_address_spaces_(level - 1, aa[i] & PG_FRAME, ab[i] & PG_FRAME);
 	}
 }
@@ -206,6 +217,15 @@ compare_address_spaces_(int level, paddr_t a, paddr_t b)
 void
 compare_address_spaces(paddr_t a, paddr_t b)
 {
+	/* uint64_t *aal4 = (void *)PMAP_DIRECT_MAP(a); */
+	/* uint64_t *abl4 = (void *)PMAP_DIRECT_MAP(b); */
+
+	/* uint64_t *aal3 = (void *)PMAP_DIRECT_MAP(aal4[0] & PG_FRAME); */
+	/* uint64_t *abl3 = (void *)PMAP_DIRECT_MAP(abl4[0] & PG_FRAME); */
+
+	/* abl3[0] = aal3[0]; */
+	/* abl4[255] = aal4[255]; */
+
 	printf(">> AS differences start\n");
 	compare_address_spaces_(PTP_LEVELS, a, b);
 	printf("<< AS differences end\n");
@@ -225,6 +245,7 @@ efi_enter(void)
 void
 efi_leave(void)
 {
+	/* lcr3(pmap_kernel()->pm_pdirpa); */
 	fpu_kernel_exit();
 	intr_restore(efi_psw);
 }
