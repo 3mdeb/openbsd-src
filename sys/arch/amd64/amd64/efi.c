@@ -130,7 +130,7 @@ efi_map_runtime(void)
 
 	desc = (EFI_MEMORY_DESCRIPTOR *)PMAP_DIRECT_MAP(mmap_start);
 	for (i = 0; i < mmap_size / mmap_desc_size; i++) {
-		if ((desc->Attribute & EFI_MEMORY_RUNTIME) || desc->Type == EfiACPIMemoryNVS || desc->PhysicalStart == 0) {
+		if ((desc->Attribute & EFI_MEMORY_RUNTIME) || desc->Type == EfiACPIMemoryNVS) {
 			vaddr_t va = desc->VirtualStart;
 			paddr_t pa = desc->PhysicalStart;
 			int npages = desc->NumberOfPages;
