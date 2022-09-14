@@ -2833,7 +2833,7 @@ enter_now:
 	if (nocache)
 		npte |= PG_N;
 	if (va < VM_MAXUSER_ADDRESS)
-		npte |= PG_u;
+		npte |= ((flags & PMAP_EFI) ? 0 : PG_u);
 	else if (va < VM_MAX_ADDRESS)
 		npte |= (PG_u | PG_RW);	/* XXXCDC: no longer needed? */
 	if (pmap == pmap_kernel())

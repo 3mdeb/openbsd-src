@@ -243,6 +243,13 @@ attach	acpipci at acpi
 file	arch/amd64/pci/acpipci.c		acpipci
 
 #
+# EFI
+#
+device	efi
+attach	efi at bios
+file	arch/amd64/amd64/efi.c			efi needs-flag
+
+#
 # VMM
 #
 device vmm {}

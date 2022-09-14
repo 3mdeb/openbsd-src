@@ -330,10 +330,14 @@ void
 acpi_attach_machdep(struct acpi_softc *sc)
 {
 	extern void (*cpuresetfn)(void);
+	extern void (*powerdownfn)(void);
 
 	sc->sc_interrupt = isa_intr_establish(NULL, sc->sc_fadt->sci_int,
 	    IST_LEVEL, IPL_BIO, acpi_interrupt, sc, sc->sc_dev.dv_xname);
-	cpuresetfn = acpi_reset;
+	if (!cpuresetfn)
+		cpuresetfn = acpi_reset;
+	if (!powerdownfn)
+		powerdownfn = acpi_powerdown;
 
 #ifndef SMALL_KERNEL
 	/*

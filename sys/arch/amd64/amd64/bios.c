@@ -30,6 +30,7 @@
 #include <amd64/include/isa_machdep.h>
 
 #include "acpi.h"
+#include "efi.h"
 #include "mpbios.h"
 #include "pci.h"
 
@@ -189,6 +190,18 @@ out:
 				break;
 			}
 	}
+
+#if NEFI > 0
+	if (bios_efiinfo != NULL) {
+		struct bios_attach_args ba;
+
+		memset(&ba, 0, sizeof(ba));
+		ba.ba_name = "efi";
+		ba.ba_memt = X86_BUS_SPACE_MEM;
+
+		config_found(self, &ba, bios_print);
+	}
+#endif
 
 #if NACPI > 0
 	{

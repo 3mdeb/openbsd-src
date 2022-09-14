@@ -256,6 +256,7 @@
 #define PCID_PROC	1	/* non-pmap_kernel(), U+K */
 #define PCID_PROC_INTEL	2	/* non-pmap_kernel(), U-K (meltdown) */
 #define PCID_TEMP	3	/* temp mapping of another non-pmap_kernel() */
+#define PCID_EFI	4	/* EFI runtime services */
 
 extern int pmap_use_pcid;	/* non-zero if PCID support is enabled */
 
@@ -316,6 +317,8 @@ struct pmap {
 	int pm_type;			/* Type of pmap this is (PMAP_TYPE_x) */
 	uint64_t eptp;			/* cached EPTP (used by vmm) */
 };
+
+#define PMAP_EFI	PMAP_MD0
 
 /*
  * MD flags that we use for pmap_enter (in the pa):

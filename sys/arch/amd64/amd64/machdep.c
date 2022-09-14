@@ -126,6 +126,11 @@ extern int db_console;
 #include <dev/ic/comreg.h>
 #endif
 
+#include "efi.h"
+#if NEFI > 0
+#include <dev/acpi/efi.h>
+#endif
+
 #include "softraid.h"
 #if NSOFTRAID > 0
 #include <dev/softraidvar.h>
@@ -244,6 +249,10 @@ u_int32_t	bios_cksumlen;
 bios_efiinfo_t	*bios_efiinfo;
 bios_ucode_t	*bios_ucode;
 
+#if NEFI > 0
+EFI_MEMORY_DESCRIPTOR *mmap;
+#endif
+
 /*
  * Size of memory segments, before any memory is stolen.
  */
@@ -258,6 +267,7 @@ void	cpu_init_extents(void);
 void	map_tramps(void);
 void	init_x86_64(paddr_t);
 void	(*cpuresetfn)(void);
+void	(*powerdownfn)(void);
 void	enter_shared_special_pages(void);
 
 #ifdef APERTURE
@@ -850,15 +860,13 @@ haltsys:
 #endif
 
 	if ((howto & RB_HALT) != 0) {
-#if NACPI > 0 && !defined(SMALL_KERNEL)
-		extern int acpi_enabled;
-
-		if (acpi_enabled) {
+		if ((howto & RB_POWERDOWN) != 0) {
+			printf("\nAttempting to power down...\n");
 			delay(500000);
-			if ((howto & RB_POWERDOWN) != 0)
-				acpi_powerdown();
+			if (powerdownfn)
+				(*powerdownfn)();
 		}
-#endif
+
 		printf("\n");
 		printf("The operating system has halted.\n");
 		printf("Please press any key to reboot.\n\n");
@@ -1537,6 +1545,16 @@ init_x86_64(paddr_t first_avail)
 	 * We must do this before loading pages into the VM system.
 	 */
 	first_avail = pmap_bootstrap(first_avail, trunc_page(avail_end));
+
+#if NEFI > 0
+	/* Relocate the EFI memory map. */
+	if (bios_efiinfo && bios_efiinfo->mmap_start) {
+		mmap = (EFI_MEMORY_DESCRIPTOR *)PMAP_DIRECT_MAP(first_avail);
+		memcpy(mmap, (void *)PMAP_DIRECT_MAP(bios_efiinfo->mmap_start),
+		    bios_efiinfo->mmap_size);
+		first_avail += round_page(bios_efiinfo->mmap_size);
+	}
+#endif
 
 	/* Allocate these out of the 640KB base memory */
 	if (avail_start != PAGE_SIZE)
