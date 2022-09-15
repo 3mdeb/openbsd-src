@@ -47,6 +47,10 @@ typedef struct {
   { 0xf2fd1544, 0x9794, 0x4a2c, \
     { 0x99, 0x2e, 0xe5, 0xbb, 0xcf, 0x20, 0xe3, 0x94 } }
 
+#define ESRT_TABLE_GUID \
+  { 0xb122a263, 0x3661, 0x4f68, \
+    { 0x99, 0x29, 0x78, 0xf8, 0xb0, 0xd6, 0x21, 0x80 } }
+
 #define EFI_GLOBAL_VARIABLE \
   { 0x8be4df61, 0x93ca, 0x11d2, \
     { 0xaa,0x0d,0x00,0xe0,0x98,0x03,0x2b,0x8c } }
@@ -174,6 +178,25 @@ typedef struct {
 	UINTN				NumberOfTableEntries;
 	EFI_CONFIGURATION_TABLE		*ConfigurationTable;
 } EFI_SYSTEM_TABLE;
+
+typedef struct {
+	UINT32	FwResourceCount;
+	UINT32	FwResourceCountMax;
+	UINT64	FwResourceVersion;
+	//EFI_SYSTEM_RESOURCE_ENTRY Entries[];
+} EFI_SYSTEM_RESOURCE_TABLE;
+
+#define EFI_SYSTEM_RESOURCE_TABLE_FIRMWARE_RESOURCE_VERSION 1
+
+typedef struct {
+	EFI_GUID	FwClass;
+	UINT32		FwType;
+	UINT32		FwVersion;
+	UINT32		LowestSupportedFwVersion;
+	UINT32		CapsuleFlags;
+	UINT32		LastAttemptVersion;
+	UINT32		LastAttemptStatus;
+} EFI_SYSTEM_RESOURCE_ENTRY;
 
 #define EFI_SUCCESS	0
 

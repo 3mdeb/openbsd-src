@@ -18,6 +18,7 @@
 
 #include <sys/param.h>
 #include <sys/device.h>
+#include <sys/malloc.h>
 #include <sys/proc.h>
 #include <sys/systm.h>
 #include <sys/user.h>
@@ -41,6 +42,7 @@ struct efi_softc {
 	struct device	sc_dev;
 	struct pmap	*sc_pm;
 	EFI_RUNTIME_SERVICES *sc_rs;
+	EFI_SYSTEM_RESOURCE_TABLE *esrt;
 	u_long		sc_psw;
 	uint64_t	sc_cr3;
 
@@ -58,6 +60,7 @@ struct cfdriver efi_cd = {
 	NULL, "efi", DV_DULL
 };
 
+void	efi_init_esrt(struct efi_softc *);
 void	efi_enter(struct efi_softc *);
 void	efi_leave(struct efi_softc *);
 int	efi_gettime(struct todr_chip_handle *, struct timeval *);
@@ -133,7 +136,10 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 
 	desc = mmap;
 	for (i = 0; i < mmap_size / mmap_desc_size; i++) {
-		if (desc->Attribute & EFI_MEMORY_RUNTIME) {
+		/* Need to map EfiACPIMemoryNVS as at least OVMF accesses it to
+		 * check for trusted domain. */
+		if ((desc->Attribute & EFI_MEMORY_RUNTIME) ||
+		    desc->Type == EfiACPIMemoryNVS) {
 			vaddr_t va = desc->PhysicalStart;
 			paddr_t pa = desc->PhysicalStart;
 			int npages = desc->NumberOfPages;
@@ -186,12 +192,16 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	 * we have to activate our pmap to access them.
 	 */
 	efi_enter(sc);
+
 	if (st->FirmwareVendor) {
 		printf("%s: ", sc->sc_dev.dv_xname);
 		for (i = 0; st->FirmwareVendor[i]; i++)
 			printf("%c", st->FirmwareVendor[i]);
 		printf(" rev 0x%x\n", st->FirmwareRevision);
 	}
+
+	efi_init_esrt(sc);
+
 	efi_leave(sc);
 
 	if (rs == NULL)
@@ -211,6 +221,49 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	sc->sc_todr.todr_gettime = efi_gettime;
 	sc->sc_todr.todr_settime = efi_settime;
 	todr_handle = &sc->sc_todr;
+}
+
+/* Assumes RT memory is mapped. */
+void
+efi_init_esrt(struct efi_softc *sc)
+{
+	EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
+	EFI_SYSTEM_RESOURCE_ENTRY *esre;
+	size_t esrt_size;
+	int i;
+
+	if (bios_efiinfo->config_esrt == 0)
+		return;
+
+	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)bios_efiinfo->config_esrt;
+	esrt_size = sizeof(*efi_esrt) +
+	    sizeof(*esre) * efi_esrt->FwResourceCount;
+
+	/* Make a copy of ESRT to not depend on a mapping. */
+	sc->esrt = malloc(esrt_size, M_DEVBUF, M_NOWAIT);
+	memcpy(sc->esrt, efi_esrt, esrt_size);
+
+	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&sc->esrt[1];
+
+	printf("ESRT FwResourceCount = %d\n", sc->esrt->FwResourceCount);
+
+	for (i = 0; i < sc->esrt->FwResourceCount; i++) {
+		printf("ESRT[%d]:\n", i);
+		printf("  FwClass: %08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
+		    esre[i].FwClass.Data1,
+		    esre[i].FwClass.Data2,
+		    esre[i].FwClass.Data3,
+		    esre[i].FwClass.Data4[0], esre[i].FwClass.Data4[1],
+		    esre[i].FwClass.Data4[2], esre[i].FwClass.Data4[3],
+		    esre[i].FwClass.Data4[4], esre[i].FwClass.Data4[5],
+		    esre[i].FwClass.Data4[6], esre[i].FwClass.Data4[7]);
+		printf("  FwType: 0x%08x\n", esre[i].FwType);
+		printf("  FwVersion: 0x%08x\n", esre[i].FwVersion);
+		printf("  LowestSupportedFwVersion: 0x%08x\n", esre[i].LowestSupportedFwVersion);
+		printf("  CapsuleFlags: 0x%08x\n", esre[i].CapsuleFlags);
+		printf("  LastAttemptVersion: 0x%08x\n", esre[i].LastAttemptVersion);
+		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
+	}
 }
 
 void
@@ -312,4 +365,17 @@ efi_powerdown(void)
 	efi_enter(sc);
 	sc->sc_rs->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
 	efi_leave(sc);
+}
+
+int
+efi_get_esrt(const void **table, unsigned int *size)
+{
+	struct efi_softc *sc = efi_cd.cd_devs[0];
+	if (sc->esrt == NULL)
+		return (1);
+
+	*table = sc->esrt;
+	*size = sizeof(sc->esrt) +
+	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * sc->esrt->FwResourceCount;
+	return (0);
 }
