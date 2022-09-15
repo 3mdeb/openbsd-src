@@ -783,6 +783,7 @@ efi_com_putc(dev_t dev, int c)
  */
 static EFI_GUID			 acpi_guid = ACPI_20_TABLE_GUID;
 static EFI_GUID			 smbios_guid = SMBIOS_TABLE_GUID;
+static EFI_GUID			 esrt_guid = ESRT_TABLE_GUID;
 static EFI_GRAPHICS_OUTPUT	*gop;
 static int			 gopmode = -1;
 
@@ -824,6 +825,35 @@ efi_makebootargs(void)
 		    &ST->ConfigurationTable[i].VendorGuid) == 0)
 			ei.config_smbios = (intptr_t)
 			    ST->ConfigurationTable[i].VendorTable;
+		else if (efi_guidcmp(&esrt_guid,
+		    &ST->ConfigurationTable[i].VendorGuid) == 0)
+			ei.config_esrt = (uintptr_t)
+			    ST->ConfigurationTable[i].VendorTable;
+	}
+
+	/*
+	 * Need to copy ESRT because call to ExitBootServices() frees memory of
+	 * type EfiBootServicesData in which ESRT resides.
+	 */
+	if (ei.config_esrt != 0) {
+		EFI_SYSTEM_RESOURCE_TABLE *esrt =
+		    (EFI_SYSTEM_RESOURCE_TABLE *)ei.config_esrt;
+		size_t esrt_size = sizeof(*esrt) +
+		    esrt->FwResourceCount * sizeof(EFI_SYSTEM_RESOURCE_ENTRY);
+
+		void *esrt_copy;
+
+		/*
+		 * Using EfiRuntimeServicesData as it maps to BIOS_MAP_RES,
+		 * while EfiLoaderData becomes BIOS_MAP_FREE.
+		 */
+		status = BS->AllocatePool(EfiRuntimeServicesData,
+					  esrt_size, &esrt_copy);
+		if (status != EFI_SUCCESS)
+			panic("BS->AllocatePool()");
+
+		memcpy(esrt_copy, esrt, esrt_size);
+		ei.config_esrt = (uintptr_t)esrt_copy;
 	}
 
 	/*
