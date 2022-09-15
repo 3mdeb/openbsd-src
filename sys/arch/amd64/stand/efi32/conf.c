@@ -40,7 +40,7 @@
 #include "efidev.h"
 #include "efipxe.h"
 
-const char version[] = "3.53";
+const char version[] = "3.53-x";
 
 #ifdef EFI_DEBUG
 int	debug = 0;
