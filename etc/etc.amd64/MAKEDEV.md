@@ -98,6 +98,7 @@ _DEV(vmm, 10)
 _DEV(vscsi, 89)
 _DEV(pvbus, 95)
 _DEV(kstat, 51)
+_DEV(efi, 101)
 dnl
 divert(__mddivert)dnl
 dnl

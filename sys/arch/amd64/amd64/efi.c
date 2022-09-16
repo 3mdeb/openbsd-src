@@ -68,6 +68,10 @@ int	efi_settime(struct todr_chip_handle *, struct timeval *);
 void	efi_reset(void);
 void	efi_powerdown(void);
 
+int efiopen(dev_t, int, int, struct proc *);
+int eficlose(dev_t, int, int, struct proc *);
+int efiioctl(dev_t, u_long, caddr_t, int, struct proc *);
+
 int
 efi_match(struct device *parent, void *match, void *aux)
 {
@@ -378,4 +382,22 @@ efi_get_esrt(const void **table, unsigned int *size)
 	*size = sizeof(sc->esrt) +
 	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * sc->esrt->FwResourceCount;
 	return (0);
+}
+
+int
+efiopen(dev_t dev, int flag, int mode, struct proc *p)
+{
+	return (efi_cd.cd_ndevs > 0 ? 0 : ENXIO);
+}
+
+int
+eficlose(dev_t dev, int flag, int mode, struct proc *p)
+{
+	return (0);
+}
+
+int
+efiioctl(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
+{
+	return (EOPNOTSUPP);
 }

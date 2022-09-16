@@ -136,6 +136,7 @@ cdev_decl(cy);
 #include "bktr.h"
 #include "ksyms.h"
 #include "kstat.h"
+#include "efi.h"
 #include "usb.h"
 #include "uhid.h"
 #include "fido.h"
@@ -173,6 +174,7 @@ cdev_decl(pci);
 #include "fuse.h"
 #include "pvbus.h"
 #include "ipmi.h"
+cdev_decl(efi);
 
 struct cdevsw	cdevsw[] =
 {
@@ -289,6 +291,7 @@ struct cdevsw	cdevsw[] =
 	cdev_fido_init(NFIDO,fido),	/* 98: FIDO/U2F security keys */
 	cdev_pppx_init(NPPPX,pppac),	/* 99: PPP Access Concentrator */
 	cdev_ujoy_init(NUJOY,ujoy),	/* 100: USB joystick/gamecontroller */
+	cdev_efi_init(NEFI,efi),	/* 101: EFI */
 };
 int	nchrdev = nitems(cdevsw);
 
