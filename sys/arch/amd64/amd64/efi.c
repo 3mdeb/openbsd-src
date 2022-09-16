@@ -374,19 +374,6 @@ efi_powerdown(void)
 }
 
 int
-efi_get_esrt(const void **table, unsigned int *size)
-{
-	struct efi_softc *sc = efi_cd.cd_devs[0];
-	if (sc->esrt == NULL)
-		return (1);
-
-	*table = sc->esrt;
-	*size = sizeof(sc->esrt) +
-	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * sc->esrt->FwResourceCount;
-	return (0);
-}
-
-int
 efiopen(dev_t dev, int flag, int mode, struct proc *p)
 {
 	return (efi_cd.cd_ndevs > 0 ? 0 : ENXIO);
