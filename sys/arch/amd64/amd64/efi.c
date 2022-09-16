@@ -234,42 +234,19 @@ void
 efi_init_esrt(struct efi_softc *sc)
 {
 	EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
-	EFI_SYSTEM_RESOURCE_ENTRY *esre;
 	size_t esrt_size;
-	int i;
 
+	/* There might be no ESRT. */
 	if (bios_efiinfo->config_esrt == 0)
 		return;
 
 	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)bios_efiinfo->config_esrt;
 	esrt_size = sizeof(*efi_esrt) +
-	    sizeof(*esre) * efi_esrt->FwResourceCount;
+	    efi_esrt->FwResourceCount * sizeof(EFI_SYSTEM_RESOURCE_ENTRY);
 
 	/* Make a copy of ESRT to not depend on a mapping. */
 	sc->esrt = malloc(esrt_size, M_DEVBUF, M_NOWAIT);
 	memcpy(sc->esrt, efi_esrt, esrt_size);
-
-	esre = (EFI_SYSTEM_RESOURCE_ENTRY *)&sc->esrt[1];
-
-	printf("ESRT FwResourceCount = %d\n", sc->esrt->FwResourceCount);
-
-	for (i = 0; i < sc->esrt->FwResourceCount; i++) {
-		printf("ESRT[%d]:\n", i);
-		printf("  FwClass: %08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
-		    esre[i].FwClass.Data1,
-		    esre[i].FwClass.Data2,
-		    esre[i].FwClass.Data3,
-		    esre[i].FwClass.Data4[0], esre[i].FwClass.Data4[1],
-		    esre[i].FwClass.Data4[2], esre[i].FwClass.Data4[3],
-		    esre[i].FwClass.Data4[4], esre[i].FwClass.Data4[5],
-		    esre[i].FwClass.Data4[6], esre[i].FwClass.Data4[7]);
-		printf("  FwType: 0x%08x\n", esre[i].FwType);
-		printf("  FwVersion: 0x%08x\n", esre[i].FwVersion);
-		printf("  LowestSupportedFwVersion: 0x%08x\n", esre[i].LowestSupportedFwVersion);
-		printf("  CapsuleFlags: 0x%08x\n", esre[i].CapsuleFlags);
-		printf("  LastAttemptVersion: 0x%08x\n", esre[i].LastAttemptVersion);
-		printf("  LastAttemptStatus: 0x%08x\n", esre[i].LastAttemptStatus);
-	}
 }
 
 void
