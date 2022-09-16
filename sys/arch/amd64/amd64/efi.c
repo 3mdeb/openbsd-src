@@ -31,6 +31,7 @@ extern void (*cpuresetfn)(void);
 extern void (*powerdownfn)(void);
 
 #include <dev/acpi/efi.h>
+#include <dev/efi/efiio.h>
 
 #include <dev/clock_subr.h>
 
@@ -71,6 +72,7 @@ void	efi_powerdown(void);
 int efiopen(dev_t, int, int, struct proc *);
 int eficlose(dev_t, int, int, struct proc *);
 int efiioctl(dev_t, u_long, caddr_t, int, struct proc *);
+int efiioc_get_table(dev_t, u_long, caddr_t, int, struct proc *);
 
 int
 efi_match(struct device *parent, void *match, void *aux)
@@ -399,5 +401,46 @@ eficlose(dev_t dev, int flag, int mode, struct proc *p)
 int
 efiioctl(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
 {
-	return (EOPNOTSUPP);
+	int error;
+
+	switch (cmd) {
+	case EFIIOC_GET_TABLE:
+		error = efiioc_get_table(dev, cmd, data, flag, p);
+		break;
+
+	default:
+		error = EOPNOTSUPP;
+		break;
+	}
+
+	return (error);
+}
+
+int
+efiioc_get_table(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
+{
+	struct uuid esrt_guid = EFI_TABLE_ESRT;
+	struct efi_softc *sc = efi_cd.cd_devs[0];
+	struct efi_get_table_ioc *ioc = (struct efi_get_table_ioc *)data;
+
+	/* Only ESRT is supported at the moment. */
+	if (bcmp(&ioc->uuid, &esrt_guid, sizeof(ioc->uuid)) != 0)
+		return (EINVAL);
+
+	/* ESRT might not be present. */
+	if (sc->esrt == NULL)
+		return (ENXIO);
+
+	ioc->table_len = sizeof(*sc->esrt) +
+	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * sc->esrt->FwResourceCount;
+
+	/* Return table length to userspace. */
+	if (ioc->buf == NULL)
+		return (0);
+
+	/* Refuse to copy only part of the table. */
+	if (ioc->buf_len < ioc->table_len)
+		return (EINVAL);
+
+	return copyout(sc->esrt, ioc->buf, ioc->table_len);
 }

@@ -28,7 +28,41 @@ The
 driver provides support for EFI services offered by UEFI
 firmware implementations.
 The driver is used for reading and setting the Real Time Clock,
-performing reboot and shutdown.
+performing reboot and shutdown and accessing ESRT (EFI System Resource Table)
+via
+.Xr ioctl 2
+calls.
+.Pp
+The
+.Nm
+driver implements the following
+.Xr ioctl 2
+calls.
+They are defined in
+.In dev/efi/efiio.h
+with support structures in
+.In dev/efi/efi.h .
+.Bl -tag -width Ds
+.It Dv EFIIOC_GET_TABLE
+.Pq Li "struct efi_get_table_ioc"
+Read an EFI table.
+The argument structure is as follows:
+.Bd -literal -offset indent
+struct efi_get_table_ioc {
+	void *buf;		/* Pointer to userspace buffer */
+	struct uuid uuid;	/* UUID to look up */
+	size_t table_len;	/* Table size */
+	size_t buf_len;		/* Size of the buffer */
+};
+.Ed
+.Pp
+The following UUIDs are accepted (defined in
+.In dev/efi/efi.h ):
+.Bd -literal -offset indent
+#define EFI_TABLE_ESRT \\
+	{0xb122a263,0x3661,0x4f68,0x99,0x29,{0x78,0xf8,0xb0,0xd6,0x21,0x80}}
+.Ed
+.El
 .Sh SEE ALSO
 .Xr intro 4
 .Sh HISTORY
