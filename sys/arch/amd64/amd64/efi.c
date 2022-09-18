@@ -198,17 +198,15 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	 * we have to activate our pmap to access them.
 	 */
 	efi_enter(sc);
-
 	if (st->FirmwareVendor) {
 		printf("%s: ", sc->sc_dev.dv_xname);
 		for (i = 0; st->FirmwareVendor[i]; i++)
 			printf("%c", st->FirmwareVendor[i]);
 		printf(" rev 0x%x\n", st->FirmwareRevision);
 	}
-
-	efi_init_esrt(sc);
-
 	efi_leave(sc);
+
+	sc->esrt = (EFI_SYSTEM_RESOURCE_TABLE *)bios_efiinfo->config_esrt;
 
 	if (rs == NULL)
 		return;
@@ -227,26 +225,6 @@ efi_attach(struct device *parent, struct device *self, void *aux)
 	sc->sc_todr.todr_gettime = efi_gettime;
 	sc->sc_todr.todr_settime = efi_settime;
 	todr_handle = &sc->sc_todr;
-}
-
-/* Assumes RT memory is mapped. */
-void
-efi_init_esrt(struct efi_softc *sc)
-{
-	EFI_SYSTEM_RESOURCE_TABLE *efi_esrt;
-	size_t esrt_size;
-
-	/* There might be no ESRT. */
-	if (bios_efiinfo->config_esrt == 0)
-		return;
-
-	efi_esrt = (EFI_SYSTEM_RESOURCE_TABLE *)bios_efiinfo->config_esrt;
-	esrt_size = sizeof(*efi_esrt) +
-	    efi_esrt->FwResourceCount * sizeof(EFI_SYSTEM_RESOURCE_ENTRY);
-
-	/* Make a copy of ESRT to not depend on a mapping. */
-	sc->esrt = malloc(esrt_size, M_DEVBUF, M_NOWAIT);
-	memcpy(sc->esrt, efi_esrt, esrt_size);
 }
 
 void
@@ -386,6 +364,8 @@ efiioc_get_table(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
 	struct uuid esrt_guid = EFI_TABLE_ESRT;
 	struct efi_softc *sc = efi_cd.cd_devs[0];
 	struct efi_get_table_ioc *ioc = (struct efi_get_table_ioc *)data;
+	char *buf;
+	int status;
 
 	/* Only ESRT is supported at the moment. */
 	if (bcmp(&ioc->uuid, &esrt_guid, sizeof(ioc->uuid)) != 0)
@@ -395,16 +375,30 @@ efiioc_get_table(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
 	if (sc->esrt == NULL)
 		return (ENXIO);
 
+	efi_enter(sc);
+
 	ioc->table_len = sizeof(*sc->esrt) +
 	    sizeof(EFI_SYSTEM_RESOURCE_ENTRY) * sc->esrt->FwResourceCount;
 
 	/* Return table length to userspace. */
-	if (ioc->buf == NULL)
-		return (0);
+	if (ioc->buf == NULL) {
+		efi_leave(sc);
+		return 0;
+	}
 
 	/* Refuse to copy only part of the table. */
-	if (ioc->buf_len < ioc->table_len)
-		return (EINVAL);
+	if (ioc->buf_len < ioc->table_len) {
+		efi_leave(sc);
+		return EINVAL;
+	}
 
-	return copyout(sc->esrt, ioc->buf, ioc->table_len);
+	buf = malloc(ioc->table_len, M_TEMP, M_WAITOK);
+	memcpy(buf, sc->esrt, ioc->table_len);
+
+	efi_leave(sc);
+
+	status = copyout(buf, ioc->buf, ioc->table_len);
+	free(buf, M_TEMP, ioc->table_len);
+
+	return status;
 }
