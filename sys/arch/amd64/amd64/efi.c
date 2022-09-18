@@ -61,7 +61,45 @@ struct cfdriver efi_cd = {
 	NULL, "efi", DV_DULL
 };
 
-void	efi_init_esrt(struct efi_softc *);
+static int efi_status2err[36] = {
+	0,		/* EFI_SUCCESS */
+	ENOEXEC,	/* EFI_LOAD_ERROR */
+	EINVAL,		/* EFI_INVALID_PARAMETER */
+	ENOSYS,		/* EFI_UNSUPPORTED */
+	EMSGSIZE, 	/* EFI_BAD_BUFFER_SIZE */
+	EOVERFLOW,	/* EFI_BUFFER_TOO_SMALL */
+	EBUSY,		/* EFI_NOT_READY */
+	EIO,		/* EFI_DEVICE_ERROR */
+	EROFS,		/* EFI_WRITE_PROTECTED */
+	EAGAIN,		/* EFI_OUT_OF_RESOURCES */
+	EIO,		/* EFI_VOLUME_CORRUPTED */
+	ENOSPC,		/* EFI_VOLUME_FULL */
+	ENXIO,		/* EFI_NO_MEDIA */
+	ESTALE,		/* EFI_MEDIA_CHANGED */
+	ENOENT,		/* EFI_NOT_FOUND */
+	EACCES,		/* EFI_ACCESS_DENIED */
+	ETIMEDOUT,	/* EFI_NO_RESPONSE */
+	EADDRNOTAVAIL,	/* EFI_NO_MAPPING */
+	ETIMEDOUT,	/* EFI_TIMEOUT */
+	ENXIO,		/* EFI_NOT_STARTED */
+	EALREADY,	/* EFI_ALREADY_STARTED */
+	ECANCELED,	/* EFI_ABORTED */
+	EPROTO,		/* EFI_ICMP_ERROR */
+	EPROTO,		/* EFI_TFTP_ERROR */
+	EPROTO,		/* EFI_PROTOCOL_ERROR */
+	EFTYPE,		/* EFI_INCOMPATIBLE_VERSION */
+	EPERM,          /* EFI_SECURITY_VIOLATION */
+	EIO,		/* EFI_CRC_ERROR */
+	EIO,		/* EFI_END_OF_MEDIA */
+	EILSEQ,		/* - */
+	EILSEQ,		/* - */
+	EIO,		/* EFI_END_OF_FILE */
+	EINVAL,		/* EFI_INVALID_LANGUAGE */
+	EIO,		/* EFI_COMPROMISED_DATA */
+	EADDRINUSE,	/* EFI_IP_ADDRESS_CONFLICT */
+	EPROTO,		/* EFI_HTTP_ERROR */
+};
+
 void	efi_enter(struct efi_softc *);
 void	efi_leave(struct efi_softc *);
 int	efi_gettime(struct todr_chip_handle *, struct timeval *);
@@ -73,6 +111,10 @@ int efiopen(dev_t, int, int, struct proc *);
 int eficlose(dev_t, int, int, struct proc *);
 int efiioctl(dev_t, u_long, caddr_t, int, struct proc *);
 int efiioc_get_table(dev_t, u_long, caddr_t, int, struct proc *);
+int efiioc_var_get(dev_t, u_long, caddr_t, int, struct proc *);
+int efiioc_var_next(dev_t, u_long, caddr_t, int, struct proc *);
+int efiioc_var_set(dev_t, u_long, caddr_t, int, struct proc *);
+int efi_adapt_error(EFI_STATUS);
 
 int
 efi_match(struct device *parent, void *match, void *aux)
@@ -343,19 +385,27 @@ eficlose(dev_t dev, int flag, int mode, struct proc *p)
 int
 efiioctl(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
 {
-	int error;
+	int status;
 
 	switch (cmd) {
 	case EFIIOC_GET_TABLE:
-		error = efiioc_get_table(dev, cmd, data, flag, p);
+		status = efiioc_get_table(dev, cmd, data, flag, p);
 		break;
-
+	case EFIIOC_VAR_GET:
+		status = efiioc_var_get(dev, cmd, data, flag, p);
+		break;
+	case EFIIOC_VAR_NEXT:
+		status = efiioc_var_next(dev, cmd, data, flag, p);
+		break;
+	case EFIIOC_VAR_SET:
+		status = efiioc_var_set(dev, cmd, data, flag, p);
+		break;
 	default:
-		error = EOPNOTSUPP;
+		status = ENOTTY;
 		break;
 	}
 
-	return (error);
+	return (status);
 }
 
 int
@@ -401,4 +451,164 @@ efiioc_get_table(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
 	free(buf, M_TEMP, ioc->table_len);
 
 	return status;
+}
+
+int
+efiioc_var_get(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
+{
+	struct efi_softc *sc = efi_cd.cd_devs[0];
+	struct efi_var_ioc *ioc = (struct efi_var_ioc *)data;
+
+	void *value = NULL;
+	efi_char *name = NULL;
+	size_t valuesize = ioc->datasize;
+	int status;
+
+	if (valuesize > 0) {
+		value = malloc(valuesize, M_TEMP, M_WAITOK);
+		if (value == NULL) {
+			status = ENOMEM;
+			goto leave;
+		}
+	}
+
+	name = malloc(ioc->namesize, M_TEMP, M_WAITOK);
+	if (name == NULL) {
+		status = ENOMEM;
+		goto leave;
+	}
+
+	status = copyin(ioc->name, name, ioc->namesize);
+	if (status != 0)
+		goto leave;
+
+	/* NULL-terminated name must fit into namesize bytes. */
+	if (name[ioc->namesize / sizeof(*name) - 1] != 0) {
+		status = EINVAL;
+		goto leave;
+	}
+
+	efi_enter(sc);
+	status = efi_adapt_error(sc->sc_rs->GetVariable(name,
+	    (EFI_GUID *)&ioc->vendor, &ioc->attrib, &ioc->datasize, value));
+	efi_leave(sc);
+
+	if (status == 0) {
+		status = copyout(value, ioc->data, ioc->datasize);
+	} else if (status == EOVERFLOW) {
+		/*
+		 * Return size of the value, which was set by EFI RT, reporting
+		 * no error to match FreeBSD's behaviour.
+		 */
+		ioc->data = NULL;
+		status = 0;
+	}
+
+leave:
+	free(value, M_TEMP, valuesize);
+	free(name, M_TEMP, ioc->namesize);
+	return status;
+}
+
+int
+efiioc_var_next(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
+{
+	struct efi_softc *sc = efi_cd.cd_devs[0];
+	struct efi_var_ioc *ioc = (struct efi_var_ioc *)data;
+
+	efi_char *name;
+	int status;
+	size_t namesize = ioc->namesize;
+
+	name = malloc(namesize, M_TEMP, M_WAITOK);
+	if (name == NULL) {
+		status = ENOMEM;
+		goto leave;
+	}
+
+	status = copyin(ioc->name, name, namesize);
+	if (status)
+		goto leave;
+
+	efi_enter(sc);
+	status = efi_adapt_error(sc->sc_rs->GetNextVariableName(&ioc->namesize,
+	    name, (EFI_GUID *)&ioc->vendor));
+	efi_leave(sc);
+
+	if (status == 0) {
+		status = copyout(name, ioc->name, ioc->namesize);
+	} else if (status == EOVERFLOW) {
+		/*
+		 * Return size of the name, which was set by EFI RT, reporting
+		 * no error to match FreeBSD's behaviour.
+		 */
+		ioc->name = NULL;
+		status = 0;
+	}
+
+leave:
+	free(name, M_TEMP, namesize);
+	return status;
+}
+
+int
+efiioc_var_set(dev_t dev, u_long cmd, caddr_t data, int flag, struct proc *p)
+{
+	struct efi_softc *sc = efi_cd.cd_devs[0];
+	struct efi_var_ioc *ioc = (struct efi_var_ioc *)data;
+
+	void *value = NULL;
+	efi_char *name = NULL;
+	int status;
+
+	/* Zero datasize means variable deletion. */
+	if (ioc->datasize > 0) {
+		value = malloc(ioc->datasize, M_TEMP, M_WAITOK);
+		if (value == NULL) {
+			status = ENOMEM;
+			goto leave;
+		}
+
+		status = copyin(ioc->data, value, ioc->datasize);
+		if (status)
+			goto leave;
+	}
+
+	name = malloc(ioc->namesize, M_TEMP, M_WAITOK);
+	if (name == NULL) {
+		status = ENOMEM;
+		goto leave;
+	}
+
+	status = copyin(ioc->name, name, ioc->namesize);
+	if (status)
+		goto leave;
+
+	/* NULL-terminated name must fit into namesize bytes. */
+	if (name[ioc->namesize / sizeof(*name) - 1] != 0) {
+		status = EINVAL;
+		goto leave;
+	}
+
+	if (securelevel > 0) {
+		status = EPERM;
+		goto leave;
+	}
+
+	efi_enter(sc);
+	status = efi_adapt_error(sc->sc_rs->SetVariable(name,
+	    (EFI_GUID *)&ioc->vendor, ioc->attrib, ioc->datasize, value));
+	efi_leave(sc);
+
+leave:
+	free(value, M_TEMP, ioc->datasize);
+	free(name, M_TEMP, ioc->namesize);
+	return status;
+}
+
+int
+efi_adapt_error(EFI_STATUS status)
+{
+	u_long code = status & 0x3ffffffffffffffful;
+	return (code < nitems(efi_status2err) ? efi_status2err[code] : EILSEQ);
 }

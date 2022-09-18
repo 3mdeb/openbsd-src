@@ -31,6 +31,20 @@ struct efi_get_table_ioc
 	size_t buf_len;		/* Size of the buffer */
 };
 
+struct efi_var_ioc
+{
+	efi_char *name;		/* User pointer to name, in UCS2 chars */
+	size_t namesize;	/* Number of *bytes* in the name including
+				   terminator */
+	struct uuid vendor;	/* Vendor's UUID for variable */
+	uint32_t attrib;	/* Attributes */
+	void *data;		/* User pointer to value */
+	size_t datasize;	/* Number of *bytes* in the value */
+};
+
 #define EFIIOC_GET_TABLE	_IOWR('E',  1, struct efi_get_table_ioc)
+#define EFIIOC_VAR_GET          _IOWR('E',  4, struct efi_var_ioc)
+#define EFIIOC_VAR_NEXT         _IOWR('E',  5, struct efi_var_ioc)
+#define EFIIOC_VAR_SET          _IOWR('E',  6, struct efi_var_ioc)
 
 #endif /* _DEV_EFI_EFIIO_H_ */

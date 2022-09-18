@@ -62,6 +62,39 @@ The following UUIDs are accepted (defined in
 #define EFI_TABLE_ESRT \\
 	{0xb122a263,0x3661,0x4f68,0x99,0x29,{0x78,0xf8,0xb0,0xd6,0x21,0x80}}
 .Ed
+.It Dv EFIIOC_VAR_GET
+.Pq Li "struct efi_var_ioc"
+Read an EFI variable specified by a combination of UUID and its name.
+The argument structure is the same for all
+.Dv EFIIOC_VAR_* :
+.Bd -literal -offset indent
+struct efi_var_ioc {
+	efi_char *name;         /* User pointer to name, in UCS2 chars */
+	size_t namesize;        /* Number of *bytes* in the name including
+				   terminator */
+	struct uuid vendor;     /* Vendor's UUID for variable */
+	uint32_t attrib;        /* Attributes */
+	void *data;             /* User pointer to value */
+	size_t datasize;        /* Number of *bytes* in the value */
+};
+.Ed
+"namesize" must cover all bytes of the name and two terminating zeros (each
+"efi_char" is 2 bytes).
+Zero "datasize" is a request to fill it in, in which case "data" is ignored.
+Input value of "attrib" is irrelevant for this call, but its assigned to.
+.It Dv EFIIOC_VAR_NEXT
+.Pq Li "struct efi_var_ioc"
+Obtain name of the next EFI variable.
+First call should be done with zero "namesize" and zeroed "vendor".
+"name" and "namesize" should be eare updated on each call.
+All other fields are ignored.
+.It Dv EFIIOC_VAR_SET
+.Pq Li "struct efi_var_ioc"
+Write or delete an EFI variable specified by a combination of UUID and its name.
+Normally uses all fields of the input structure.
+Zero size makes "data" field irrelevant and is treated as a request to delete
+a variable (but not necessarily reclaim the space it took, a reboot might be
+needed for that).
 .El
 .Sh SEE ALSO
 .Xr intro 4
